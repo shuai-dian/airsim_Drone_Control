@@ -1,0 +1,173 @@
+ 起始点坐标   'gps_location': <GeoPoint> {   'altitude': 118.7955322265625,
+    'latitude': 47.64146796210233,
+    'longitude': -122.14016495104394},
+
+
+
+
+
+#起飞  client.takeoffAsync(timeout_sec = 20, vehicle_name = '')
+#降落  client.landAsync( timeout_sec = 60, vehicle_name = '')
+#回到起始位置 client.goHomeAsync(timeout_sec = 3e+38, vehicle_name = '')
+#悬停   client.hoverAsync(vehicle_name = '')
+2. 获取无人机状态
+这个状态是由传感器估计的状态，并不是无人机状态的真值。
+AirSim默认的无人机底层飞控 simple_flight 并不支持状态估计，所以如果是simple_flight 飞控，此函数得到的状态与真值相同。
+使用PX4 飞控可以获取估计的状态
+state = client.getMultirotorState(vehicle_name = '')
+其中无人机的状态变量 state 包含如下：
+ class MultirotorState(MsgpackMixin):
+     collision = CollisionInfo()                 # 碰撞信息
+     kinematics_estimated = KinematicsState()    # 状态信息
+     gps_location = GeoPoint()                   # GPS 信息
+     timestamp = np.uint64(0)                    # 时间戳
+     landed_state = LandedState.Landed           # 是否是降落状态
+     rc_data = RCData()                          # 遥控器数据
+     ready = False
+     ready_message = ""
+     can_arm = False
+碰撞信息的定义先列在这里，后面再具体讲。
+ class CollisionInfo(MsgpackMixin):
+     has_collided = False
+     normal = Vector3r()
+     impact_point = Vector3r()
+     position = Vector3r()
+     penetration_depth = 0.0
+     time_stamp = 0.0
+     object_name = ""
+     object_id = -1
+状态信息的定义：
+ class KinematicsState(MsgpackMixin):
+     position = Vector3r()               # 位置
+     orientation = Quaternionr()         # 姿态角
+     linear_velocity = Vector3r()        # 速度
+     angular_velocity = Vector3r()       # 机体角速率
+     linear_acceleration = Vector3r()    # 加速度
+     angular_acceleration = Vector3r()   # 机体角加速
+GPS 信息包含：
+ class GeoPoint(MsgpackMixin):
+     latitude = 0.0
+     longitude = 0.0
+     altitude = 0.0
+2.2 获取状态真值
+ kinematics_state = client.simGetGroundTruthKinematics(vehicle_name = '')
+
+3. 无人机控制
+3.1 位置控制
+x，y，z是全局坐标系下的三维位置坐标指令
+ client.moveToPositionAsync(x, y, z, velocity, timeout_sec = 3e+38, drivetrain = DrivetrainType.MaxDegreeOfFreedom, yaw_mode = YawMode(),lookahead = -1, adaptive_lookahead = 1, vehicle_name = '')
+3.2 速度控制
+vx，vy，vz是全局坐标系(NED)下的速度指令
+ client.moveByVelocityAsync(vx, vy, vz, duration, drivetrain = DrivetrainType.MaxDegreeOfFreedom, yaw_mode = YawMode(), vehicle_name = '')
+
+3.3 水平速度控制（指定高度）
+vx，vy是全局坐标系(NED)下的速度指令，z是全局高度指令
+ client.moveByVelocityZAsync(vx, vy, z, duration, drivetrain = DrivetrainType.MaxDegreeOfFreedom, yaw_mode = YawMode(), vehicle_name = '')
+
+3.4 水平姿态角控制（指定高度）
+pitch, roll是水平姿态角指令，z 是全局高度指令，yaw是偏航角指令
+ client.moveByAngleZAsync(pitch, roll, z, yaw, duration, vehicle_name = '')
+
+3.5 水平姿态角控制（高度油门控制）
+pitch, roll是水平姿态角指令，throttle 是油门量指令，yaw_rate是偏航角速率指令
+ moveByAngleThrottleAsync(pitch, roll, throttle, yaw_rate, duration, vehicle_name = '')
+
+3.6 高度控制
+z 是全局高度指令，velocity是垂直速度
+ client.moveToZAsync(z, velocity, timeout_sec = 3e+38, yaw_mode = YawMode(), lookahead = -1, adaptive_lookahead = 1, vehicle_name = '')
+
+3.7 偏航角控制
+ client.rotateToYawAsync(yaw, timeout_sec = 3e+38, margin = 5, vehicle_name = '')
+
+3.8 偏航角速率控制
+ client.rotateByYawRateAsync(yaw_rate, duration, vehicle_name = '')
+
+3.9 沿路径飞行
+ client.moveOnPathAsync(path, velocity, timeout_sec = 3e+38, drivetrain = DrivetrainType.MaxDegreeOfFreedom, yaw_mode = YawMode(),lookahead = -1, adaptive_lookahead = 1, vehicle_name = '')
+
+3.10 遥控器控制
+由遥控器信号控制，vx_max, vy_max是速度限制，z_min 是最低高度限制。
+ client.moveByManualAsync(vx_max, vy_max, z_min, duration, drivetrain = DrivetrainType.MaxDegreeOfFreedom, yaw_mode = YawMode(), vehicle_name = '')
+
+3.11 遥控器控制（程序定义遥控器信号量）
+ client.moveByRC(rcdata = RCData(), vehicle_name = '')
+
+
+
+4. 无人机底层飞控
+4.1 直接控制四个电机
+ client.moveByMotorPWMsAsync(front_right_pwm, rear_left_pwm, front_left_pwm, rear_right_pwm, duration, vehicle_name = '')
+
+
+4.2 姿态角控制、指定高度控制
+roll, pitch, yaw 姿态角指令，z 高度指令
+
+ client.moveByRollPitchYawZAsync(roll, pitch, yaw, z, duration, vehicle_name = '')
+
+
+4.3 姿态角控制、高度油门控制
+ client.moveByRollPitchYawThrottleAsync(roll, pitch, yaw, throttle, duration, vehicle_name = '')
+
+
+4.4 俯仰翻滚姿态角、偏航角速率、高度油门控制
+ client.moveByRollPitchYawrateThrottleAsync(roll, pitch, yaw_rate, throttle, duration, vehicle_name = '')
+
+
+4.5 俯仰翻滚姿态角、偏航角速率、指定高度控制
+ client.moveByRollPitchYawrateZAsync(roll, pitch, yaw_rate, z, duration, vehicle_name = '')
+
+
+4.6 姿态角速率、指定高度
+ client.moveByAngleRatesZAsync(roll_rate, pitch_rate, yaw_rate, z, duration, vehicle_name = '')
+
+
+4.7 姿态角速率、高度油门控制
+ client.moveByAngleRatesThrottleAsync(roll_rate, pitch_rate, yaw_rate, throttle, duration, vehicle_name = '')
+
+
+4.8 更改角速度环控制器参数
+ client.setAngleRateControllerGains( angle_rate_gains=AngleRateControllerGains(), vehicle_name = '')
+
+
+4.9 更改角度环控制器参数
+ client.setAngleLevelControllerGains(angle_level_gains=AngleLevelControllerGains(), vehicle_name = '')
+
+
+4.10 更改速度环控制器参数
+ client.setVelocityControllerGains(velocity_gains=VelocityControllerGains(), vehicle_name = '')
+
+
+4.11 更改位置环控制器参数
+ client.setPositionControllerGains(position_gains=PositionControllerGains(), vehicle_name = '')
+
+
+
+
+
+
+5. 关于Async的解释和使用
+这里面的很多控制函数都有 dutation 或者 timeout_sec，而且函数有 Async 后缀。这些方法的调用会立即返回，即使其所指定的任务还没有完成，这样程序可以继续往下执行，而不用在这里等待仿真中的无人机把任务执行完。如果想要程序在这里等待任务执行完，则需要在方法后面加上 .join()。例如，让四旋翼起飞，如果想要程序一直在这里等待四旋翼起飞完成，然后再执行后面的语句，则可以用client.takeoffAsync().join()
+
+
+
+6. 关于任务覆盖
+在代码执行时，如果使用的都是立即返回，那么很有可能在仿真中，无人机的上一个任务还没有执行完，新的任务就又到来了，此时旧的任务会被取消，新的任务会覆盖掉旧的任务，无人机会立即执行最新的任务。
+
+
+
+7. 关于偏航角的控制
+drivetrain 和 yaw_mode 这两个参数的组合可以设置四旋翼的偏航角控制模式。
+
+drivetrain 参数可以设置为两个量：
+
+airsim.DrivetrainType.ForwardOnly： 始终朝向速度方向
+airsim.DrivetrainType.MaxDegreeOfFreedom：手动设置yaw角度
+yaw_mode 必须设置为 YawMode() 类型的变量，这个结构体类型包含两个属性：
+
+YawMode().is_rate：True - 设置角速度；False - 设置角度
+YawMode().yaw_or_rate：可以是任意浮点数
+下面总结一下这两个参数的设置对效果的影响：
+
+ForwardOnly	MaxDegreeOfFreedom
+is_rate=True	不允许	yaw角以yaw_or_rate度/秒旋转
+is_rate=False	yaw角相对于速度方向偏差yaw_or_rate度	yaw角相对正北方向偏差yaw_or_rate度
